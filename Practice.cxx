@@ -18,6 +18,7 @@
 #include <vtkCallbackCommand.h>
 #include <vtkCommand.h>
 #include <vtkTransform.h>
+#include <vtkEllipseArcSource.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -98,8 +99,30 @@ namespace Atom {
 			assembly->SetUserTransform(transform);
 		}
 
-		transform->RotateY(1.0);
+		transform->RotateY(5.0);
 		interactor->GetRenderWindow()->Render();
+	}
+
+	vtkSmartPointer<vtkRenderer> CreateElectronShell(vtkSmartPointer<vtkRenderer> renderer, int shells, vtkSmartPointer<vtkNamedColors> colors) {
+		for (int i = 1; i <= shells; i++) {
+			vtkSmartPointer<vtkEllipseArcSource> shell = vtkSmartPointer<vtkEllipseArcSource>::New();
+			shell->SetCenter(0.0, 0.0, 0.0);
+			shell->SetNormal(0.0, 0.0, 1.0);
+			shell->SetMajorRadiusVector(10.0 * i, 0.0, 0.0);
+			shell->SetStartAngle(0);
+			shell->SetSegmentAngle(360);
+			shell->SetRatio(2.0);
+
+			vtkSmartPointer<vtkPolyDataMapper> shellMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+			shellMapper->SetInputConnection(shell->GetOutputPort());
+
+			vtkSmartPointer<vtkActor> shellActor = vtkSmartPointer<vtkActor>::New();
+			shellActor->SetMapper(shellMapper);
+			shellActor->GetProperty()->SetColor(colors->GetColor3d("Shell").GetData());
+			renderer->AddActor(shellActor);
+		}
+
+		return renderer;
 	}
 }
 
@@ -109,13 +132,18 @@ int main(int, char* [])
 	colors->SetColor("Proton", "Yellow");
 	colors->SetColor("Neutron", "Blue");
 	colors->SetColor("Electron", "Black");
+	colors->SetColor("Shell", "Black");
 
 	vtkSmartPointer<vtkAssembly> nucleasAssembly = vtkSmartPointer<vtkAssembly>::New();
 	nucleasAssembly = Atom::CreateNucleas(nucleasAssembly, 5, 94, 144, colors);
 	
+	// Add nucleas
 	vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
 	renderer->AddActor(nucleasAssembly);
 	renderer->SetBackground(colors->GetColor3d("White").GetData());
+
+	// Add shells
+	renderer = Atom::CreateElectronShell(renderer, 5, colors);
 
 	vtkNew<vtkRenderWindow> renderWindow;
 	renderWindow->SetWindowName("Plutonium-238 Isotope");
