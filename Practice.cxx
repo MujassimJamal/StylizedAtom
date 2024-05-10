@@ -21,7 +21,7 @@
 #include <vtkEllipseArcSource.h>
 #include <vtkRegularPolygonSource.h>
 #include <vtkMath.h>
-
+#include <vtkPropCollection.h>
 #include <random>
 
 namespace Atom {
@@ -67,8 +67,6 @@ namespace Atom {
 		std::uniform_real_distribution<double> theta_dist(0.0, 2.0 * vtkMath::Pi());
 		std::uniform_real_distribution<double> phi_dist(0.0, vtkMath::Pi());
 
-		vtkSmartPointer<vtkAppendFilter> nucleas = vtkSmartPointer<vtkAppendFilter>::New();
-
 		int totalParticles = protons + neutrons;
 		for (int i = 1; i <= totalParticles; i++) {
 			// Calculate random coordinates with respect to virtual sphere radius
@@ -90,21 +88,7 @@ namespace Atom {
 		return nucleusAssembly;
 	}
 
-	void RotateNucleas(vtkObject* caller, long unsigned int eventId, void* clientData, void* callData) {
-		vtkRenderWindowInteractor* interactor = static_cast<vtkRenderWindowInteractor*>(caller);
-		vtkAssembly* assembly = static_cast<vtkAssembly*>(clientData);
-
-		vtkTransform* transform = vtkTransform::SafeDownCast(assembly->GetUserTransform());
-		if (!transform) {
-			transform = vtkTransform::New();
-			assembly->SetUserTransform(transform);
-		}
-
-		transform->RotateY(5.0);
-		interactor->GetRenderWindow()->Render();
-	}
-
-	vtkSmartPointer<vtkRenderer> CreateElectronShell(vtkSmartPointer<vtkRenderer> renderer, int shells, vtkSmartPointer<vtkNamedColors> colors) {
+	vtkSmartPointer<vtkRenderer> CreateElectronShell(vtkSmartPointer<vtkRenderer> renderer, vtkSmartPointer<vtkPropCollection> shellCollection, int shells, vtkSmartPointer<vtkNamedColors> colors) {
 		// New normal vector for the shells
 		double normal[3] = { 0.0, 1.0, 0.3 };
 		vtkMath::Normalize(normal);
@@ -137,11 +121,14 @@ namespace Atom {
 			vtkSmartPointer<vtkActor> shellActor = vtkSmartPointer<vtkActor>::New();
 			shellActor->SetMapper(shellMapper);
 			shellActor->GetProperty()->SetColor(colors->GetColor3d("Shell").GetData());
-			renderer->AddActor(shellActor);
 
-			int numElectrons = pow(2, i);  // example electron count; adjust as necessary
-			for (int j = 0; j < numElectrons; j++) {
-				double angle = 2.0 * vtkMath::Pi() * j / numElectrons;
+			vtkSmartPointer<vtkAssembly> shellAssembly = vtkSmartPointer<vtkAssembly>::New();
+			shellAssembly->AddPart(shellActor);
+
+			// 2n^2 rule
+			int totalElectrons = 2 * pow(i, 2);
+			for (int j = 0; j < totalElectrons; j++) {
+				double angle = 2.0 * vtkMath::Pi() * j / totalElectrons;
 				double radius = 10.0 + i * 3;
 				double x = radius * cos(angle);
 				double y = radius * sin(angle);
@@ -151,11 +138,46 @@ namespace Atom {
 				transform->TransformPoint(electronPos, electronPos);
 
 				vtkSmartPointer<vtkActor> electronActor = CreateParticle(electronPos, 0.5, colors->GetColor3d("Electron").GetData());
-				renderer->AddActor(electronActor);
+				shellAssembly->AddPart(electronActor);
 			}
+
+			renderer->AddActor(shellAssembly);
+			shellCollection->AddItem(shellAssembly);
 		}
 
 		return renderer;
+	}
+
+	void RotateNucleas(vtkObject* caller, long unsigned int eventId, void* clientData, void* callData) {
+		vtkRenderWindowInteractor* interactor = static_cast<vtkRenderWindowInteractor*>(caller);
+		vtkAssembly* assembly = static_cast<vtkAssembly*>(clientData);
+
+		vtkTransform* transform = vtkTransform::SafeDownCast(assembly->GetUserTransform());
+		if (!transform) {
+			transform = vtkTransform::New();
+			assembly->SetUserTransform(transform);
+		}
+
+		transform->RotateY(5.0);
+		interactor->GetRenderWindow()->Render();
+	}
+
+	void RotateShell(vtkObject* caller, long unsigned int eventId, void* clientData, void* callData) {
+		vtkRenderWindowInteractor* interactor = static_cast<vtkRenderWindowInteractor*>(caller);
+		vtkPropCollection* assemblyCollection = static_cast<vtkPropCollection*>(clientData);
+
+		assemblyCollection->InitTraversal();
+		for (vtkIdType i = 0; i < assemblyCollection->GetNumberOfItems(); i++) {
+			vtkAssembly* assembly = vtkAssembly::SafeDownCast(assemblyCollection->GetNextItemAsObject());
+			vtkTransform* transform = vtkTransform::SafeDownCast(assembly->GetUserTransform());
+			if (!transform) {
+				transform = vtkTransform::New();
+				assembly->SetUserTransform(transform);
+			}
+
+			transform->RotateY(5.0 * i);
+			interactor->GetRenderWindow()->Render();
+		}
 	}
 }
 
@@ -176,10 +198,11 @@ int main(int, char* [])
 	renderer->SetBackground(colors->GetColor3d("Black").GetData());
 
 	// Add shells
-	renderer = Atom::CreateElectronShell(renderer, 5, colors);
+	vtkSmartPointer<vtkPropCollection> shellCollection = vtkSmartPointer<vtkPropCollection>::New();
+	renderer = Atom::CreateElectronShell(renderer, shellCollection, 4, colors);
 
 	vtkNew<vtkRenderWindow> renderWindow;
-	renderWindow->SetWindowName("Plutonium-238 Isotope");
+	renderWindow->SetWindowName("Atom");
 	renderWindow->AddRenderer(renderer);
 
 	vtkNew<vtkRenderWindowInteractor> renderWindowInteractor;
@@ -204,12 +227,17 @@ int main(int, char* [])
 	markerWidget->InteractiveOn();
 
 	vtkCamera* camera = renderer->GetActiveCamera();
-	camera->SetPosition(0.0, 0.0, 150.0);
+	camera->SetPosition(0.0, 0.0, 200.0);
 
 	vtkSmartPointer<vtkCallbackCommand> nucleasCallback = vtkSmartPointer<vtkCallbackCommand>::New();
 	nucleasCallback->SetCallback(Atom::RotateNucleas);
 	nucleasCallback->SetClientData(nucleasAssembly);
 	renderWindowInteractor->AddObserver(vtkCommand::TimerEvent, nucleasCallback);
+
+	vtkSmartPointer<vtkCallbackCommand> shellCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	shellCallback->SetCallback(Atom::RotateShell);
+	shellCallback->SetClientData(shellCollection);
+	renderWindowInteractor->AddObserver(vtkCommand::TimerEvent, shellCallback);
 
 	renderWindow->SetFullScreen(true);
 	//renderWindow->SetSize(800, 600);
