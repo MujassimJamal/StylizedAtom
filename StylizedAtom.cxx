@@ -12,11 +12,7 @@
 #include <vtkSphereSource.h>
 #include <vtkCamera.h>
 #include <vtkInteractorStyleSwitch.h>
-#include <vtkProp3DCollection.h>
 #include <vtkProperty2D.h>
-#include <vtkImageData.h>
-#include <vtkAppendFilter.h>
-#include <vtkDataSetMapper.h>
 #include <vtkAssembly.h>
 #include <vtkCallbackCommand.h>
 #include <vtkCommand.h>
@@ -43,7 +39,7 @@
 namespace Atom {
 
 	/**
-	 * Create a single particle source
+	 * Create a single particle source.
 	 *
 	 * @param center - The center of particle
 	 * @param radius - The radius of particle
@@ -54,7 +50,7 @@ namespace Atom {
 	vtkSmartPointer<vtkSphereSource> CreateParticleSource(double* center, double radius, double* color);
 
 	/**
-	 * Create a single particle
+	 * Create a single particle actor.
 	 *
 	 * @param center - The center of particle
 	 * @param radius - The radius of particle
@@ -82,7 +78,7 @@ namespace Atom {
                                                vtkSmartPointer<vtkNamedColors> colors);
 
 	/**
-	 * Create electron shells around the nucleas.
+	 * Create electron shells (energy levels) around the nucleas.
 	 *
 	 * @param renderer - The renderer
 	 * @param shellCollection - Collection of shell assemblies
@@ -250,7 +246,7 @@ namespace Atom {
                                                int protons,
                                                int neutrons,
                                                vtkSmartPointer<vtkNamedColors> colors) {
-		// Randomly position each particle inside a bigger virtual sphere with nucleasRadius.
+		// Randomly position each particle inside a bigger virtual sphere of radius nucleasRadius.
 		// A smaller value of nucleusRadius will result in a more spherical nucleus.
 		std::random_device rd;
 		std::mt19937 gen(rd());
@@ -302,9 +298,6 @@ namespace Atom {
 		for (int i = 1; i <= shells; i++) {
 			vtkSmartPointer<vtkEllipseArcSource> shellSource = vtkSmartPointer<vtkEllipseArcSource>::New();
 			shellSource->SetCenter(0.0, 0.0, 0.0);
-			/*shellSource->SetNumberOfSides(100);
-			shellSource->GeneratePolygonOff();
-			shellSource->SetRadius(10.0 + i * 3);*/
 			shellSource->SetRatio(1.0);
 			shellSource->SetMajorRadiusVector(0.0, 0.0, 10.0 + i * 3.0);
 			shellSource->SetStartAngle(0);
@@ -417,7 +410,7 @@ namespace Atom {
 		legendActor->GetPosition2Coordinate()->SetCoordinateSystemToView();
 		legendActor->GetPosition2Coordinate()->SetValue(1, -0.7);
 		legendActor->UseBackgroundOn();
-		legendActor->SetBackgroundColor(colors->GetColor3d("DarkSlateGray").GetData());
+		legendActor->SetBackgroundColor(colors->GetColor3d("White").GetData());
 		
 		return legendActor;
 	}
