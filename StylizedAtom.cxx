@@ -117,6 +117,18 @@ namespace Atom {
 	void RotateShell(vtkObject* caller, long unsigned int eventId, void* clientData, void* callData);
 
 	/**
+	 * Adjust camera zooming
+	 *
+	 * @param caller - Caller invoking the event
+	 * @param eventId - event id
+	 * @param clientData - The data to apply rotation
+	 * @param callData - Callback data sent with the event invokation
+	 *
+	 * @return void
+	 */
+	void AdjustZoom(vtkObject* caller, long unsigned int eventId, void* clientData, void* callData);
+
+	/**
 	 * Create legend
 	 *
 	 * @param color - The color for legend text properties
@@ -124,6 +136,10 @@ namespace Atom {
 	 * @return vtkLegendBoxActor
 	 */
 	vtkSmartPointer<vtkLegendBoxActor> CreateLegendWidget(vtkSmartPointer<vtkNamedColors> colors);
+
+	unsigned long dollyObserverTag;
+	double currentZoomInFactor;
+	const double ZOOM_IN_DELTA = 0.02;
 } // namespace
 
 int main(int, char* [])
@@ -188,7 +204,7 @@ int main(int, char* [])
 	// Set camera position of the renderer in the world coordinates
 	vtkCamera* camera = renderer->GetActiveCamera();
 	camera->SetPosition(0.0, 0.0, 200.0);
-	camera->Dolly(2.0);
+	Atom::currentZoomInFactor = 1;
 	renderer->ResetCameraClippingRange();
 
 	// Add legend
@@ -207,10 +223,16 @@ int main(int, char* [])
 	shellCallback->SetClientData(shellCollection);
 	renderWindowInteractor->AddObserver(vtkCommand::TimerEvent, shellCallback);
 
+	// Create an observer to adjust the camera zooming at startup
+	vtkSmartPointer<vtkCallbackCommand> dollyCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+	dollyCallback->SetCallback(Atom::AdjustZoom);
+	dollyCallback->SetClientData(camera);
+	Atom::dollyObserverTag = renderWindowInteractor->AddObserver(vtkCommand::TimerEvent, dollyCallback);
+
 	//renderWindow->SetFullScreen(true); // Uncomment this line for fullscreen window size
 	renderWindow->Render();
 	renderWindowInteractor->Initialize();
-	renderWindowInteractor->CreateRepeatingTimer(1); // Create repeating timer for the rotation callbacks
+	renderWindowInteractor->CreateRepeatingTimer(0); // Create repeating timer for the rotation callbacks
 	renderWindowInteractor->Start();
 
 	return EXIT_SUCCESS;
@@ -338,7 +360,7 @@ namespace Atom {
 			shellCollection->AddItem(shellAssembly);
 		}
 
-		shellCollection->SetObjectName("ElectronShells");
+		shellCollection->SetObjectName("ShellCollection");
 		return shellCollection;
 	}
 
@@ -374,6 +396,20 @@ namespace Atom {
 			transform->RotateWXYZ(angle, rotation);
 			interactor->GetRenderWindow()->Render();
 		}
+	}
+
+	void AdjustZoom(vtkObject* caller, long unsigned int eventId, void* clientData, void* callData) {
+		vtkRenderWindowInteractor* interactor = static_cast<vtkRenderWindowInteractor*>(caller);
+		vtkCamera* camera = static_cast<vtkCamera*>(clientData);
+
+		double factor = currentZoomInFactor + ZOOM_IN_DELTA;
+		currentZoomInFactor = factor;
+		camera->Zoom(factor);
+
+		if (currentZoomInFactor >= 1.16) {
+			interactor->RemoveObserver(dollyObserverTag);
+		}
+		interactor->GetRenderWindow()->Render();
 	}
 
 	vtkSmartPointer<vtkLegendBoxActor> CreateLegendWidget(vtkSmartPointer<vtkNamedColors> colors) {
